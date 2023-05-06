@@ -1,0 +1,18 @@
+---
+title: "In-class_Ex04"
+---
+
+```{r}
+pacman::p_load(tidyverse,gt,rstatix,patchwork)
+```
+
+```{r}
+exam_data <- read_csv("C:/Fay1109/ISSS608-VAA/In-class_Ex/In-class_Ex04/data/Exam_data.csv")
+```
+
+```{r}
+ggplot(exam_data,
+      aes(sample=ENGLISH))+
+  stat_qq()+
+  stat_qq_line()
+```
