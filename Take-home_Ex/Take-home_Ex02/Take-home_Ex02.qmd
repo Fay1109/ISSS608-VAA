@@ -13,7 +13,7 @@ pacman::p_load(jsonlite, tidyverse, tidygraph, ggraph, visNetwork, lubridate, ig
 ## **Load the dataset in JSON format**
 
 ```{r}
-mc2_data <- fromJSON("C:/Fay1109/ISSS608-VAA/Take-home_Ex/Take_home_Ex02/data/mc2_challenge_graph.json")
+mc2_data <- fromJSON("C:/Fay1109/ISSS608-VAA/Take-home_Ex/Take-home_Ex02/data/mc2_challenge_graph.json")
 ```
 
 ## **Data Wrangling**
