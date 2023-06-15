@@ -26,7 +26,7 @@ website:
         - text: "Take-home_Ex01"
           href: "Take-home_Ex/Take-home_Ex01/Take-home_Ex01.qmd" 
         - text: "Take-home_Ex02"
-          href: "Take-home_Ex/Take-home_Ex02/Take-home_Ex02.qmd" 
+          href: "Take-home_Ex/Take-home_Ex02/Take-home_Ex02.qmd"
         - text: "Take-home_Ex03"
           href: "Take-home_Ex/Take-home_Ex03/Take-home_Ex03.qmd" 
         - text: "Take-home_Ex04"
