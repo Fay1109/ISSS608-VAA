@@ -9,7 +9,7 @@ The code chunk below will be used to install and load the necessary R packages t
 ```{r}
 pacman::p_load(jsonlite, tidygraph, ggraph, 
                visNetwork, graphlayouts, ggforce, 
-               skimr, tidytext, tidyverse, caret)
+               skimr, tidytext, tidyverse, caret, igraph, wordcloud)
 ```
 
 ## **Data Import**
@@ -70,12 +70,6 @@ In the code chunk below, `datatable()` of DT package is used to display mc3_edge
 DT::datatable(mc3_edges)
 ```
 
-```{r}
-ggplot(data = mc3_edges,
-       aes(x = type)) +
-  geom_bar()
-```
-
 ## **Initial Network Visualisation and Analysis**
 
 ### **Building network model with tidygraph**
@@ -128,12 +122,6 @@ In the code chunk below, `datatable()` of DT package is used to display mc3_node
 
 ```{r}
 DT::datatable(mc3_nodes)
-```
-
-```{r}
-ggplot(data = mc3_nodes,
-       aes(x = type)) +
-  geom_bar()
 ```
 
 ## **Text Sensing with tidytext**
@@ -208,6 +196,203 @@ stopwords_removed %>%
       title = "Count of unique words found in product_services field")
 ```
 
-```{r}
+## **Distribution Analysis**
 
+Here is the distribution of two different types in edges.
+
+```{r}
+ggplot(data = mc3_edges,
+       aes(x = type)) +
+  geom_bar() +
+  labs(title = "Type variable in Edges")  # Add the plot title
+```
+
+Here is the distribution of three different types in nodes.
+
+```{r}
+ggplot(data = mc3_nodes,
+       aes(x = type)) +
+  geom_bar() +
+  labs(title = "Type variable in Nodes")  # Add the plot title
+```
+
+Here is the boxplot graph of revenue distribution across nodes type.
+
+As can be seen from the graph, "Benefical Owner" has the highest median of revenue. "Company" has lots of outliers but with the lowest median of revenue. For "Company Contracts", this category has the least variation, with the median value at around 100,000.
+
+```{r}
+ggplot(data = mc3_nodes, aes(x = type, y = revenue_omu)) +
+  geom_boxplot() +
+  scale_y_log10() +  # Apply logarithmic scale to the y-axis
+  ylab("Revenue") +
+  ggtitle("Distribution of Revenue by Node Type")
+
+```
+
+## **Text Visualization**
+
+This part use wordcloud library is called with the filtered words and their frequencies. The words are extracted from "product_services" to find which type of products and services are the most transported among all the goods categories. As can be seen from the graph, the words that appear at a high frequency are: fish, seafood, frozen, salmon and fresh.
+
+```{r}
+library(tidytext)
+library(wordcloud)
+
+# Create a tidy text data frame from the product_services column
+tidy_data <- mc3_nodes %>%
+  select(product_services) %>%
+  unnest_tokens(word, product_services)
+
+# Load the stopwords dataset
+data(stop_words)
+
+# Filter out stopwords and common meaningless words
+filtered_data <- tidy_data %>%
+  anti_join(stop_words) %>%
+  filter(!word %in% c("0", "other", "as", "a", "such", "for", "as", "the", "related", "unknown", "character"))
+
+# Compute word frequencies
+word_freq <- filtered_data %>%
+  count(word)
+
+# Filter words based on frequency
+min_freq <- 10
+max_words <- 200
+filtered_words <- word_freq %>%
+  filter(n >= min_freq) %>%
+  top_n(max_words, wt = n) %>%
+  pull(word)
+
+# Generate the word cloud
+word_freq_filtered <- word_freq %>%
+  filter(word %in% filtered_words)
+
+# Define colors for the word cloud (darker colors)
+colors <- brewer.pal(length(filtered_words), "Dark2")
+
+wordcloud(
+  words = word_freq_filtered$word,
+  freq = word_freq_filtered$n,
+  colors = colors
+)
+
+```
+
+## **Network Visualization**
+
+The following network graph shows the nodes and edges that the centrality_betweenness score is larger than 100,000 and degree is above 3.
+
+```{r}
+library(igraph)
+library(visNetwork)
+
+# Convert the edges graph to a tibble
+edges_df <- mc3_graph %>%
+  activate(edges) %>%
+  as_tibble()
+
+# Convert the nodes graph to a tibble
+nodes_df <- mc3_graph %>%
+  activate(nodes) %>%
+  as_tibble() %>%
+  rename(label = id) %>%
+  mutate(id = row_number()) %>%
+  select(id, label)
+
+# Perform community detection using the Louvain algorithm on the graph
+communities <- cluster_louvain(mc3_graph)
+
+# Get the cluster membership of each node
+membership <- membership(communities)
+
+# Add the cluster membership information to the nodes data frame
+nodes_df$group <- membership
+
+```
+
+```{r}
+mc3_graph <- tbl_graph(nodes = mc3_nodes1,
+                       edges = mc3_edges,
+                       directed = FALSE) %>%
+mutate(betweenness_centrality = centrality_betweenness(),
+       closeness_centrality = as.factor(centrality_closeness())) %>%
+filter(betweenness_centrality >= 100000)
+
+         
+# Calculate the degrees of each node
+degrees <- degree(mc3_graph)
+set.seed (1234)
+
+mc3_graph %>%
+  # filter(betweenness_centrality >= 100000) %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(alpha = 0.5)) +
+  geom_node_point(aes(size = betweenness_centrality,
+                      color = closeness_centrality,
+                      alpha = 0.5), show.legend = FALSE) +
+  geom_node_text(aes(label = ifelse(degrees > 3, as.character(id), "")), size = 2) +  # Add node labels
+  scale_size_continuous(range = c(1, 10)) +
+  labs(title = "Network Visualization") +  # Add the plot title
+  theme_graph()
+```
+
+This code plots the graph of network visualization to show the nodes and edges of "beneficial owner" and "company".
+
+```{r}
+library(ggraph)
+
+mc3_graph %>%
+  filter(betweenness_centrality >= 1000000) %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(alpha = 0.5)) +
+  geom_node_point(aes(
+    size = betweenness_centrality,
+    color = type,
+    shape = type),
+    alpha = 0.8) +
+  scale_size_continuous(range = c(1, 6)) +
+  scale_color_manual(values = c("Company Contacts" = "yellow", "Beneficial Owner" = "red", "Company" = "blue")) +
+  scale_shape_manual(values = c("Company Contacts" = 17, "Beneficial Owner" = 15, "Company" = 16)) +
+  theme_graph() +
+  labs(title = "Network Visualization") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+### **Group Detection**
+
+```{r}
+edges_df <- mc3_graph %>%
+  activate(edges) %>%
+  as.tibble()
+
+nodes_df <- mc3_graph %>%
+  activate(nodes) %>%
+  as.tibble() %>%
+  rename(label = id) %>%
+  mutate(id=row_number()) %>%
+  select(id, label)
+
+# Perform community detection using the cluster edge betweenness
+communities <- cluster_edge_betweenness(mc3_graph)
+
+# Get the cluster membership of each node
+membership <- membership(communities)
+
+# Add the cluster membership information to the nodes data frame
+nodes_df$group <- membership
+
+# Plot the graph with clustered nodes using visNetwork
+visNetwork(nodes_df, edges_df) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visEdges(arrows = "to",
+           smooth = list(enabled = TRUE,
+                         type = "curvedCW"), 
+           color = list(highlight = "lightgray")) %>%
+  visOptions(highlightNearest = list(enabled = TRUE,
+                                     degree = 1,
+                                     hover = TRUE,
+                                     labelOnly = TRUE),
+             nodesIdSelection = TRUE,
+             selectedBy = "group") %>%
+  visLayout(randomSeed = 1234)
 ```
